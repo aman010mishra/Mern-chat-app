@@ -1,14 +1,13 @@
-FROM node:20
-
+# Stage 1: Build
+FROM node:20-slim AS builder
 WORKDIR /app
-
-# Install backend dependencies
 COPY package*.json ./
 RUN npm install
-
-# Copy backend source code
 COPY . .
 
+# Stage 2: Production
+FROM node:20-slim
+WORKDIR /app
+COPY --from=builder /app .
 EXPOSE 5001
-
 CMD ["npm", "start"]
