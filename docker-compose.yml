@@ -1,40 +1,71 @@
-services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: backend
-    ports:
-      - '5001:5001'
-    env_file:
-      - ./backend/.env
-    depends_on:
-      - mongo
-    networks:
-      - chatapp-network
+name: Dockerized CI/CD
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: frontend
-    ports:
-      - '5173:80'
-    networks:
-      - chatapp-network
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
-  mongo:
-    image: mongo
-    container_name: mongo
-    ports:
-      - '27017:27017'
-    volumes:
-      - mongo-data:/data/db
-    networks:
-      - chatapp-network
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
-volumes:
-  mongo-data:
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-networks:
-  chatapp-network:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Install Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.16.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose --version
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docker-
+
+      - name: Create .env file for backend
+        run: |
+          echo "MONGO_URI=${{ secrets.MONGO_URI }}" >> backend/.env
+          echo "PORT=${{ secrets.PORT }}" >> backend/.env
+          echo "CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}" >> backend/.env
+          echo "CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}" >> backend/.env
+          echo "CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}" >> backend/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> backend/.env
+
+      - name: Build Docker Images
+        run: docker-compose build --pull
+
+      - name: List Docker Images
+        run: docker images
+
+      - name: Run Containers
+        run: docker-compose up -d
+
+      - name: Wait for services to stabilize
+        run: sleep 15
+
+      - name: Check running containers
+        run: docker ps
+
+      - name: Stop Containers
+        run: docker-compose down
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Backend Image
+        run: docker push nuclearcode070/chatapp-backend:latest
+
+      - name: Push Frontend Image
+        run: docker push nuclearcode070/chatapp-frontend:latest
