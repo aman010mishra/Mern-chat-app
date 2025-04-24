@@ -36,7 +36,7 @@ export const signup = async (req, res)=>{
             res.status(400).json({msg: "Invalid Server Error"});
         }
     }catch(err){
-        console.log("Error in signup controller");
+        console.log("Error in signup controller", err.message);
         res.status(500).json({msg: "Internal server Error"});
     }
 };
@@ -59,7 +59,7 @@ export const login = async (req, res)=>{
             profilePic: user.profilePic,
         });
     } catch (error) {
-        console.log("Error in login controller");
+        console.log("Error in login controller", err.message);
         res.status(500).json({msg: "Internal server error"});
     }
 };
